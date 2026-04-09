@@ -9,7 +9,7 @@ import urllib.request
 import uuid
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from browser_cookies_cli import import_cookies, get_cookies
 from browser_cookies_cli.formats import format_cookies

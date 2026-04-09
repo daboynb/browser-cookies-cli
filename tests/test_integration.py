@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 # PYTHONPATH is set by Docker; this fallback handles local runs
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from browser_cookies_cli import detect_browsers, get_cookies, import_cookies
 from browser_cookies_cli.formats import format_cookies, parse_cookies
