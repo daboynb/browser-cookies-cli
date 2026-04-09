@@ -216,7 +216,10 @@ def read_chromium_cookies(db_path, browser_info, browser_name, domain=None):
         conn.close()
         return cookies
     finally:
-        os.unlink(tmp)
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
 
 
 _CHROMIUM_EPOCH_DELTA = 11644473600  # seconds between 1601-01-01 and 1970-01-01

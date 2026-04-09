@@ -107,7 +107,10 @@ def read_firefox_cookies(db_path, browser_name, domain=None):
         conn.close()
         return cookies
     finally:
-        os.unlink(tmp)
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
 
 
 def write_firefox_cookies(cookies, db_path, browser_name):
