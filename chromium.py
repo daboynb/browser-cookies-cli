@@ -171,7 +171,15 @@ def read_chromium_cookies(db_path, browser_info, browser_name, domain=None):
             win_key = _get_aes_key_windows(local_state)
 
     tmp = tempfile.mktemp(suffix=".db")
-    shutil.copy2(db_path, tmp)
+    for _attempt in range(3):
+        try:
+            shutil.copy2(db_path, tmp)
+            break
+        except PermissionError:
+            if _attempt < 2:
+                time.sleep(0.1)
+            else:
+                raise
     try:
         conn = sqlite3.connect(tmp)
         if domain:
