@@ -62,20 +62,33 @@ def _get_aes_key_windows(local_state_path):
     return decrypted_key
 
 
+def _strip_sha256_prefix(decrypted):
+    """Strip optional SHA256(host_key) prefix (32 bytes) from decrypted value."""
+    if len(decrypted) > 32:
+        tail = decrypted[32:]
+        try:
+            tail.decode("utf-8")
+            return tail.decode("utf-8")
+        except UnicodeDecodeError:
+            pass
+    return decrypted.decode("utf-8", errors="replace")
+
+
 def _decrypt_windows_v80(encrypted_value, aes_key):
     """Decrypt v80 (AES-256-GCM) cookie on Windows."""
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
     nonce = encrypted_value[3:15]  # 12 bytes after "v80" or "v20"
     ciphertext_tag = encrypted_value[15:]
-    return AESGCM(aes_key).decrypt(nonce, ciphertext_tag, None).decode("utf-8")
+    decrypted = AESGCM(aes_key).decrypt(nonce, ciphertext_tag, None)
+    return _strip_sha256_prefix(decrypted)
 
 
 def _decrypt_windows_dpapi(encrypted_value):
     """Decrypt DPAPI-only cookie on Windows (older Chrome)."""
     import win32crypt  # type: ignore[import-not-found]
     _, decrypted = win32crypt.CryptUnprotectData(encrypted_value, None, None, None, 0)
-    return decrypted.decode("utf-8")
+    return _strip_sha256_prefix(decrypted)
 
 
 # ---------------------------------------------------------------------------
@@ -128,17 +141,7 @@ def _decrypt_value(encrypted_value, aes_key=None, win_key=None):
     if 0 < pad_len <= 16:
         decrypted = decrypted[:-pad_len]
 
-    # Some Chromium versions prepend SHA256(host_key) (32 bytes) to the plaintext.
-    # Detect by checking if bytes 0..32 are non-UTF-8 and the rest is valid UTF-8.
-    if len(decrypted) > 32:
-        tail = decrypted[32:]
-        try:
-            tail.decode("utf-8")
-            return tail.decode("utf-8")
-        except UnicodeDecodeError:
-            pass
-
-    return decrypted.decode("utf-8", errors="replace")
+    return _strip_sha256_prefix(decrypted)
 
 
 def _encrypt_linux_macos(payload, aes_key):
