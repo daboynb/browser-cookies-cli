@@ -1,0 +1,115 @@
+name: Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: browser_cookies_cli
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: pip install cryptography selenium
+
+      # ---- Linux ----
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          pip install secretstorage
+          sudo apt-get update
+          sudo apt-get install -y gnome-keyring dbus-x11 xvfb xdotool libsecret-1-0 firefox-esr
+
+      - name: Run tests (Linux)
+        if: runner.os == 'Linux'
+        working-directory: browser_cookies_cli
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          export XDG_RUNTIME_DIR="/tmp/xdg-runtime-$$"
+          mkdir -p "$XDG_RUNTIME_DIR"
+
+          Xvfb :99 -screen 0 1024x768x24 &>/dev/null &
+          export DISPLAY=:99
+
+          exec dbus-run-session -- bash -c '
+            export DISPLAY=:99
+            export XDG_RUNTIME_DIR="'"$XDG_RUNTIME_DIR"'"
+            export PYTHONPATH="'"$PYTHONPATH"'"
+
+            eval "$(echo "" | gnome-keyring-daemon --start --unlock --components=secrets 2>/dev/null)" || true
+            (for i in $(seq 1 15); do sleep 1; xdotool key Return 2>/dev/null || true; done) &
+
+            python3 tests/setup_chrome.py
+            python3 tests/setup_firefox.py
+
+            kill %2 2>/dev/null || true
+
+            echo "=== Integration tests ==="
+            python3 tests/test_integration.py -v
+
+            echo "=== E2E test ==="
+            python3 tests/test_e2e.py -v
+          '
+
+      # ---- macOS ----
+
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: brew install --cask firefox
+
+      - name: Run tests (macOS)
+        if: runner.os == 'macOS'
+        working-directory: browser_cookies_cli
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          security create-keychain -p "" test.keychain
+          security default-keychain -s test.keychain
+          security unlock-keychain -p "" test.keychain
+          security set-keychain-settings test.keychain
+
+          python3 tests/setup_chrome.py
+          python3 tests/setup_firefox.py
+
+          echo "=== Integration tests ==="
+          python3 tests/test_integration.py -v
+
+          echo "=== E2E test ==="
+          python3 tests/test_e2e.py -v
+
+      # ---- Windows ----
+
+      - name: Install Windows dependencies
+        if: runner.os == 'Windows'
+        run: |
+          pip install pywin32
+          choco install firefox -y --no-progress
+        shell: bash
+
+      - name: Run tests (Windows)
+        if: runner.os == 'Windows'
+        working-directory: browser_cookies_cli
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        shell: bash
+        run: |
+          python tests/setup_chrome.py
+          python tests/setup_firefox.py
+
+          echo "=== Integration tests ==="
+          python tests/test_integration.py -v
+
+          echo "=== E2E test ==="
+          python tests/test_e2e.py -v
